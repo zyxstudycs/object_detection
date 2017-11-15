@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[1]:
+# In[6]:
 
 
 import json
@@ -12,9 +12,10 @@ from matplotlib.patches import Rectangle
 import numpy as np
 label_file = 'training/label.idl'
 train_file = 'training/'
+validation_file = 'validation/'
 
 
-# In[2]:
+# In[7]:
 
 
 # write a function to plot the image and boxes.
@@ -54,25 +55,32 @@ def plot_image(pic, poses):
     plt.show()
 
 
-# In[3]:
+# In[33]:
 
 
 # define a class to process data, like get image matrix, get next batch, get label format and extract some
 # information from the data
 class image_preprocessing(object):  
-    def __init__(self, train_file, label_file):
+    def __init__(self, train_file, label_file, validation_file):
         self.train_file = train_file
         self.label_file = label_file
+        self.validation_file = validation_file
         self.pic_to_poc, self.pic_to_num, self.num_to_pic, self.num_to_pos = self.extract_data(self.label_file)
         self.images = None
         self.labels = None
+        self.validation_images = None
+        self.validation_labels = None
         self.mini_batch = 0
         
     def define_image(self, images):
         self.images = images
         
+    def prepare_data(self):
+        self.get_validation_data()
+        self.get_training_label()
+        self.get_validation_label()
+    
     def get_training_data(self):
-        self.train_file = train_file
         images = []
         for i in range(len(self.num_to_pic)):
             pic = self.num_to_pic[i]
@@ -80,27 +88,89 @@ class image_preprocessing(object):
             images.append(img)
         self.images = np.array(images) 
         
+    def get_validation_data(self):
+        images = []
+        for i in range(500):
+            pic = self.num_to_pic[9500+i]
+            img=mpimg.imread(self.validation_file + pic)
+            images.append(img)
+        self.validation_images = np.array(images)         
+        
+        
     # this time I only use one anchor box in each grid. This function return 3 things. 
     # thus I am assuming every grid have most 1 object.
     def get_training_label(self):
         """
-        box_cofidence: [10000, 18, 32, 1]
-        box_coordinate: [10000, 18, 32, 4]
-        box_class_label: [10000, 18, 32, 4]
+        box_cofidence: [9500, 18, 32, 1]
+        box_coordinate: [9500, 18, 32, 4]
+        box_class_label: [9500, 18, 32, 4]
         """
-        labels = []
+        labels = {}
+        confidences = []
+        coordinates = []
+        class_labels = []
         
-        for i in range(len(self.num_to_pos)):
-            dictionary = {}
+        for i in range(len(self.num_to_pos) - 500):
             positions = self.num_to_pos[i] 
             confidence, coordinate, class_label = self.get_one_training_label(positions)
-            dictionary['confidence'] = confidence
-            dictionary['coordinate'] = coordinate
-            dictionary['class_label'] = class_label
-            labels.append(dictionary)
+            confidences.append(confidence)
+            coordinates.append(coordinate)
+            class_labels.append(class_label)
+        
+        labels['confidence'] = np.array(confidences)
+        labels['coordinate'] = np.array(coordinates)
+        labels['class_label'] = np.array(class_labels)
         
         self.labels = labels
-               
+        
+    def get_validation_label(self):
+        labels = {}
+        confidences = []
+        coordinates = []
+        class_labels = []
+        
+        for i in range(500):
+            positions = self.num_to_pos[i + 9500] 
+            confidence, coordinate, class_label = self.get_one_training_label(positions)
+            confidences.append(confidence)
+            coordinates.append(coordinate)
+            class_labels.append(class_label)
+        
+        labels['confidence'] = np.array(confidences)
+        labels['coordinate'] = np.array(coordinates)
+        labels['class_label'] = np.array(class_labels)
+        
+        self.validation_labels = labels
+       
+    def get_next_image_batch(self, batch_size = 128):
+        assert(type(batch_size) == int)
+        images = []
+        if self.mini_batch >= len(self.num_to_pic) - 500:
+            self.mini_batch = 0
+        
+        if self.mini_batch + batch_size > len(self.num_to_pic) - 500:
+            the_batch = len(self.num_to_pic) - 500 - self.mini_batch
+        else:
+            the_batch = batch_size
+            
+        for i in range(the_batch):
+            pic = self.num_to_pic[i + self.mini_batch]
+            img = mpimg.imread(self.train_file + pic)
+            images.append(img)
+        if(self.labels is not None):
+            labels = {}
+            confidence = self.labels['confidence'][self.mini_batch: (self.mini_batch + the_batch),:,:,:]
+            coordinate = self.labels['coordinate'][self.mini_batch: (self.mini_batch + the_batch),:,:,:]
+            class_label = self.labels['class_label'][self.mini_batch: (self.mini_batch + the_batch),:,:,:]
+            labels['confidence'] = confidence
+            labels['coordinate'] = coordinate
+            labels['class_label'] = class_label
+        else:
+            labels = None
+        self.mini_batch += batch_size
+        
+        return np.array(images), labels
+        
     
     def next_batch(self, batch_size = 128):
         assert(type(batch_size) == int)
@@ -108,7 +178,13 @@ class image_preprocessing(object):
             self.mini_batch = 0
         images = self.images[self.mini_batch: (self.mini_batch + batch_size), :, :, :]
         if(self.labels is not None):
-            labels = self.labels[self.mini_batch: (self.mini_batch + batch_size)]
+            labels = {}
+            confidence = self.labels['confidence'][self.mini_batch: (self.mini_batch + batch_size),:,:,:]
+            coordinate = self.labels['coordinate'][self.mini_batch: (self.mini_batch + batch_size),:,:,:]
+            class_label = self.labels['class_label'][self.mini_batch: (self.mini_batch + batch_size),:,:,:]
+            labels['confidence'] = confidence
+            labels['coordinate'] = coordinate
+            labels['class_label'] = class_label
         else:
             labels = None
         self.mini_batch += batch_size
@@ -140,9 +216,9 @@ class image_preprocessing(object):
     
      
     def get_one_training_label(self, positions):
-        confidence = np.zeros((18, 32, 1), dtype=np.int32)
+        confidence = np.zeros((18, 32, 1), dtype=np.float32)
         coordinate = np.zeros((18, 32, 4), dtype=np.float32)
-        class_label = np.zeros((18, 32, 4), dtype=np.int32)
+        class_label = np.zeros((18, 32, 4), dtype=np.float32)
         
         for i in range(len(positions)):
             position = positions[i]
@@ -152,7 +228,7 @@ class image_preprocessing(object):
             grid_y = int(central_y / 20)
             label = position[4]
             confidence[grid_y, grid_x, 0] = 1
-            coordinate[grid_y, grid_x, :] = position[:4]
+            coordinate[grid_y, grid_x, :] = [i/640 for i in position[:4]]
             if label == 1:
                 class_label[grid_y, grid_x,0] = 1
             if label == 2:
@@ -163,5 +239,4 @@ class image_preprocessing(object):
                 class_label[grid_y, grid_x,2] = 1
                 
         return confidence, coordinate, class_label
-
 
