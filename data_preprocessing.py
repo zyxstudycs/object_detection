@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[6]:
+# In[1]:
 
 
 import json
@@ -15,7 +15,7 @@ train_file = 'training/'
 validation_file = 'validation/'
 
 
-# In[7]:
+# In[2]:
 
 
 # write a function to plot the image and boxes.
@@ -55,7 +55,7 @@ def plot_image(pic, poses):
     plt.show()
 
 
-# In[33]:
+# In[6]:
 
 
 # define a class to process data, like get image matrix, get next batch, get label format and extract some
@@ -90,8 +90,8 @@ class image_preprocessing(object):
         
     def get_validation_data(self):
         images = []
-        for i in range(500):
-            pic = self.num_to_pic[9500+i]
+        for i in range(200):
+            pic = self.num_to_pic[9800+i]
             img=mpimg.imread(self.validation_file + pic)
             images.append(img)
         self.validation_images = np.array(images)         
@@ -110,7 +110,7 @@ class image_preprocessing(object):
         coordinates = []
         class_labels = []
         
-        for i in range(len(self.num_to_pos) - 500):
+        for i in range(len(self.num_to_pos) - 200):
             positions = self.num_to_pos[i] 
             confidence, coordinate, class_label = self.get_one_training_label(positions)
             confidences.append(confidence)
@@ -129,8 +129,8 @@ class image_preprocessing(object):
         coordinates = []
         class_labels = []
         
-        for i in range(500):
-            positions = self.num_to_pos[i + 9500] 
+        for i in range(200):
+            positions = self.num_to_pos[i + 9800] 
             confidence, coordinate, class_label = self.get_one_training_label(positions)
             confidences.append(confidence)
             coordinates.append(coordinate)
@@ -145,11 +145,11 @@ class image_preprocessing(object):
     def get_next_image_batch(self, batch_size = 128):
         assert(type(batch_size) == int)
         images = []
-        if self.mini_batch >= len(self.num_to_pic) - 500:
+        if self.mini_batch >= len(self.num_to_pic) - 200:
             self.mini_batch = 0
         
-        if self.mini_batch + batch_size > len(self.num_to_pic) - 500:
-            the_batch = len(self.num_to_pic) - 500 - self.mini_batch
+        if self.mini_batch + batch_size > len(self.num_to_pic) - 200:
+            the_batch = len(self.num_to_pic) - 200 - self.mini_batch
         else:
             the_batch = batch_size
             
@@ -239,4 +239,43 @@ class image_preprocessing(object):
                 class_label[grid_y, grid_x,2] = 1
                 
         return confidence, coordinate, class_label
+
+
+# In[7]:
+
+
+image_processor = image_preprocessing(train_file, label_file, validation_file)
+image_processor.prepare_data()
+
+
+# In[22]:
+
+
+image_processor.validation_labels['class_label'].shape
+
+
+# In[19]:
+
+
+mini_batch, labels = image_processor.get_next_image_batch(5000)
+
+
+# In[20]:
+
+
+print(mini_batch.shape)
+
+
+# In[21]:
+
+
+print(labels['confidence'].shape)
+print(labels['coordinate'].shape)
+print(labels['class_label'].shape)
+
+
+# In[ ]:
+
+
+image_processor.images[1]
 
