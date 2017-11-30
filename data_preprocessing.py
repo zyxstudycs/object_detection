@@ -5,7 +5,7 @@
 
 
 import json
-import cv2
+# import cv2
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 from matplotlib.patches import Rectangle
