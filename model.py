@@ -31,7 +31,7 @@ def get_loss(box_confidence, confidence, box_coordinate, coordinate, box_class_l
     
     conf_loss_noobj = 0.5 * tf.reduce_sum(tf.square(tf.subtract(box_confidence_noobj, confidence_noobj)))
     
-    loss = coor_loss + conf_loss + class_loss + conf_loss_noobj
+    loss = conf_loss + conf_loss_noobj
     
     return loss
 
@@ -198,7 +198,7 @@ def build_model():
                                  bias1,bias2,bias3,bias4,bias5,bias_confidence,bias_coordinate,bias_class_label]
 
             # define the optimizer and train operation.
-            optimizer = tf.train.AdamOptimizer()
+            optimizer = tf.train.AdamOptimizer(epsilon=0.01,learning_rate=0.01)
             train_op = optimizer.minimize(loss, var_list = variables_to_train)
 
         # define the variables that I don't need to restore
